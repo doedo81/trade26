@@ -4,58 +4,79 @@
     <meta charset="UTF-8">
     <title>🏆 투자 결과 발표 대시보드</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
-        body { background-color: #1a1a2e; color: white; font-family: 'Pretendard', sans-serif; text-align: center; padding: 20px; }
-        .container { max-width: 1000px; margin: auto; background: #16213e; padding: 30px; border-radius: 20px; shadow: 0 0 20px rgba(0,0,0,0.5); }
+        body { background-color: #1a1a2e; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: #16213e; padding: 30px; border-radius: 20px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
         h1 { color: #f1c40f; font-size: 3em; margin-bottom: 20px; text-shadow: 2px 2px 10px rgba(241, 196, 15, 0.5); }
-        canvas { margin-top: 20px; }
-        .btn-refresh { background: #e94560; color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 1.2em; margin-bottom: 20px; }
+        .btn-refresh { background: #e94560; color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; font-size: 1.2em; margin-bottom: 20px; transition: 0.3s; }
+        .btn-refresh:hover { background: #ff4d6d; transform: scale(1.05); }
+        #status { margin-bottom: 10px; color: #888; font-size: 0.9em; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📊 실시간 투자 순위 발표</h1>
-        <button class="btn-refresh" onclick="loadData()">🔄 데이터 업데이트</button>
+        <div id="status">데이터 연결 중...</div>
+        <button class="btn-refresh" onclick="loadData()">🔄 데이터 업데이트 & 정산</button>
         <canvas id="rankingChart"></canvas>
     </div>
 
     <script>
-        // ★ 선생님의 구글 시트 CSV 주소 (동일하게 사용)
-        const SHEET_URL = "https://docs.google.com/spreadsheets/d/doedo81/export?format=csv";
+        // ★ 선생님의 실제 시트 ID가 포함된 정확한 주소로 수정했습니다.
+        const SHEET_URL = "https://docs.google.com/spreadsheets/d/1U6YtLPRPv2vI8hyceTnt2mL7bqCHRXMLx1RlZD12gTc/export?format=csv";
 
         let myChart;
 
         async function loadData() {
-            const response = await fetch(SHEET_URL);
-            const data = await response.text();
-            const rows = data.split('\n').slice(1); // 첫 줄 제외
-            
-            let teamData = { "1모둠": 0, "2모둠": 0, "3모둠": 0, "4모둠": 0, "5모둠": 0, "6모둠": 0 };
-            
-            // 데이터 정리 (가장 최근 응답 기준)
-            let latestEntries = {};
-            rows.forEach(row => {
-                const cols = row.split(',');
-                if(cols.length < 4) return;
-                const teamName = cols[1].trim();
-                const details = JSON.parse(cols[3].replace(/"{2}/g, '"').slice(1, -1)); // JSON 파싱
-                latestEntries[teamName] = details;
-            });
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = "⏳ 데이터를 불러오는 중...";
 
-            // 임의의 수익률 생성 (라운드마다 변하게 하고 싶으면 여기서 조절)
-            const rates = { "1모둠": 1.1, "2모둠": 0.9, "3모둠": 1.3, "4모둠": 0.8, "5모둠": 1.2, "6모둠": 1.0 };
+            try {
+                // 캐시 방지를 위해 시간값을 뒤에 붙여서 호출합니다.
+                const response = await fetch(SHEET_URL + "&t=" + new Date().getTime());
+                const csvText = await response.text();
+                
+                // PapaParse를 이용해 CSV를 깔끔하게 배열로 변환합니다.
+                const results = Papa.parse(csvText, { header: false }).data;
+                const rows = results.slice(1); // 제목 행 제외
 
-            let finalBalances = { "1모둠": 0, "2모둠": 0, "3모둠": 0, "4모둠": 0, "5모둠": 0, "6모둠": 0 };
-            
-            Object.keys(latestEntries).forEach(investor => {
-                let total = 0;
-                Object.entries(latestEntries[investor]).forEach(([target, amount]) => {
-                    total += amount * (rates[target] || 1);
+                let latestEntries = {};
+                rows.forEach(row => {
+                    if(row.length < 4) return;
+                    const teamName = row[1].trim(); // 모둠명
+                    let details;
+                    try {
+                        // 구글 시트에서 가져온 JSON 텍스트를 파싱
+                        details = JSON.parse(row[3]);
+                        latestEntries[teamName] = details;
+                    } catch(e) { console.error("데이터 파싱 실패:", e); }
                 });
-                finalBalances[investor] = total;
-            });
 
-            updateChart(finalBalances);
+                // --- 선생님이 여기서 수익률을 조절하세요! ---
+                const rates = { 
+                    "1모둠": 1.15, "2모둠": 0.85, "3모둠": 1.4, 
+                    "4모둠": 0.75, "5모둠": 1.2, "6모둠": 1.0 
+                };
+
+                let finalBalances = { "1모둠": 0, "2모둠": 0, "3모둠": 0, "4모둠": 0, "5모둠": 0, "6모둠": 0 };
+                
+                Object.keys(latestEntries).forEach(investor => {
+                    let total = 0;
+                    const investments = latestEntries[investor];
+                    for (let targetTeam in investments) {
+                        total += investments[targetTeam] * (rates[targetTeam] || 1);
+                    }
+                    finalBalances[investor] = Math.floor(total);
+                });
+
+                updateChart(finalBalances);
+                statusDiv.innerText = "✅ 업데이트 완료: " + new Date().toLocaleTimeString();
+
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerText = "❌ 에러: 시트 주소나 권한을 확인하세요.";
+            }
         }
 
         function updateChart(balances) {
@@ -79,7 +100,11 @@
                 options: {
                     responsive: true,
                     scales: {
-                        y: { beginAtZero: true, ticks: { color: 'white' } },
+                        y: { 
+                            beginAtZero: true, 
+                            ticks: { color: 'white', callback: (v) => v.toLocaleString() + '원' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
                         x: { ticks: { color: 'white', font: { size: 16, weight: 'bold' } } }
                     },
                     plugins: {
@@ -89,7 +114,8 @@
             });
         }
 
-        loadData();
+        // 페이지 로드 시 바로 실행
+        window.onload = loadData;
     </script>
 </body>
 </html>
