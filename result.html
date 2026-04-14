@@ -2,25 +2,23 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>🏆 투자 유치 왕 발표 대시보드</title>
+    <title>🏆 투자 유치 왕 발표</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
-        body { background-color: #0f172a; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
-        .container { max-width: 1000px; margin: auto; background: #1e293b; padding: 30px; border-radius: 20px; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
-        h1 { color: #38bdf8; font-size: 3em; margin-bottom: 10px; text-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
-        p { color: #94a3b8; margin-bottom: 30px; }
-        .btn-refresh { background: #38bdf8; color: #0f172a; border: none; padding: 15px 40px; border-radius: 12px; cursor: pointer; font-size: 1.3em; font-weight: bold; transition: 0.3s; }
-        .btn-refresh:hover { background: #7dd3fc; transform: translateY(-3px); }
-        #status { margin-bottom: 15px; font-size: 1.1em; color: #fbbf24; font-weight: bold; }
+        body { background-color: #0f172a; color: white; font-family: sans-serif; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: #1e293b; padding: 40px; border-radius: 25px; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        h1 { color: #38bdf8; font-size: 3.5em; margin-bottom: 5px; }
+        #status { margin-bottom: 20px; color: #fbbf24; font-size: 1.2em; font-weight: bold; }
+        .btn-refresh { background: #38bdf8; color: #0f172a; border: none; padding: 18px 50px; border-radius: 15px; cursor: pointer; font-size: 1.5em; font-weight: bold; transition: 0.3s; margin-bottom: 30px; }
+        .btn-refresh:hover { background: #7dd3fc; transform: scale(1.05); }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🏆 투자 유치 순위 발표</h1>
-        <p>어느 모둠이 가장 많은 신뢰(투자금)를 얻었을까요?</p>
-        <div id="status">데이터 연결 중...</div>
-        <button class="btn-refresh" onclick="loadData()">📊 결과 집계 및 순위 발표</button>
+        <h1>🏆 투자 유치 실시간 순위</h1>
+        <div id="status">연결 대기 중...</div>
+        <button class="btn-refresh" onclick="loadData()">📊 결과 집계 업데이트</button>
         <canvas id="rankingChart"></canvas>
     </div>
 
@@ -31,79 +29,61 @@
 
         async function loadData() {
             const statusDiv = document.getElementById('status');
-            statusDiv.innerText = "⏳ 전 모둠의 투자 데이터를 집계 중입니다...";
-
             try {
                 const response = await fetch(SHEET_URL + "&t=" + new Date().getTime());
                 const csvText = await response.text();
                 const results = Papa.parse(csvText, { header: false, skipEmptyLines: true }).data;
-                const rows = results.slice(1); // 제목 행 제외
+                const rows = results.slice(1);
 
-                // 1. 모든 모둠이 받은 투자금 합계를 0으로 초기화
-                let receivedInvestment = { 
-                    "1모둠": 0, "2모둠": 0, "3모둠": 0, "4모둠": 0, "5모둠": 0, "6모둠": 0 
-                };
+                // 집계통 (모든 모둠 0원 세팅)
+                let totals = { "1모둠": 0, "2모둠": 0, "3모둠": 0, "4모둠": 0, "5모둠": 0, "6모둠": 0 };
 
-                // 2. 각 응답자의 데이터를 확인하여 '받은 쪽'에 금액을 더함
                 rows.forEach(row => {
                     if(row.length < 4) return;
                     try {
                         let cleanJson = row[3].replace(/^"|"$/g, '').replace(/""/g, '"');
                         let investments = JSON.parse(cleanJson);
-                        
-                        // 예: A가 B에게 1000원 투자했다면, B의 합계에 1000원을 더함
-                        for (let targetTeam in investments) {
-                            if (receivedInvestment.hasOwnProperty(targetTeam)) {
-                                receivedInvestment[targetTeam] += Number(investments[targetTeam] || 0);
+                        for (let target in investments) {
+                            if (totals.hasOwnProperty(target)) {
+                                totals[target] += Number(investments[target]);
                             }
                         }
-                    } catch(e) { console.error("데이터 해석 실패"); }
+                    } catch(e) {}
                 });
 
-                updateChart(receivedInvestment);
-                statusDiv.innerText = "✅ 집계 완료! 실시간 순위가 반영되었습니다.";
-
+                updateChart(totals);
+                statusDiv.innerText = "✅ 총 " + rows.length + "건의 투자가 집계되었습니다!";
             } catch (error) {
-                statusDiv.innerText = "❌ 에러: 구글 시트 데이터를 가져올 수 없습니다.";
+                statusDiv.innerText = "❌ 시트 연결 실패. 주소를 확인하세요.";
             }
         }
 
-        function updateChart(balances) {
+        function updateChart(data) {
             const ctx = document.getElementById('rankingChart').getContext('2d');
-            // 많이 받은 순서대로 정렬
-            const sortedLabels = Object.keys(balances).sort((a, b) => balances[b] - balances[a]);
-            const sortedValues = sortedLabels.map(l => balances[l]);
+            const sorted = Object.keys(data).sort((a, b) => data[b] - data[a]);
+            const values = sorted.map(k => data[k]);
 
             if (myChart) myChart.destroy();
 
             myChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: sortedLabels,
+                    labels: sorted,
                     datasets: [{
-                        label: '유치한 총 투자금 (원)',
-                        data: sortedValues,
-                        backgroundColor: [
-                            '#fbbf24', '#94a3b8', '#d97706', '#0284c7', '#7c3aed', '#059669'
-                        ],
-                        borderRadius: 15
+                        data: values,
+                        backgroundColor: ['#fbbf24', '#94a3b8', '#d97706', '#0284c7', '#7c3aed', '#059669'],
+                        borderRadius: 10
                     }]
                 },
                 options: {
-                    responsive: true,
-                    scales: {
-                        y: { 
-                            beginAtZero: true, 
-                            ticks: { color: '#94a3b8', callback: (v) => v.toLocaleString() + '원' },
-                            grid: { color: 'rgba(255,255,255,0.05)' }
-                        },
-                        x: { ticks: { color: 'white', font: { size: 18, weight: 'bold' } } }
-                    },
-                    plugins: {
+                    plugins: { 
                         legend: { display: false },
-                        tooltip: { 
-                            callbacks: { label: (ctx) => `총 유치 금액: ${ctx.raw.toLocaleString()}원` }
-                        }
+                        // 막대 위에 금액 표시
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#94a3b8' } },
+                        x: { ticks: { color: 'white', font: { size: 20, weight: 'bold' } } }
                     }
                 }
             });
