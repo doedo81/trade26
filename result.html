@@ -2,22 +2,25 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>🏆 투자 결과 발표 대시보드</title>
+    <title>🏆 투자 유치 왕 발표 대시보드</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
-        body { background-color: #1a1a2e; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
-        .container { max-width: 1000px; margin: auto; background: #16213e; padding: 30px; border-radius: 20px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
-        h1 { color: #f1c40f; font-size: 3em; margin-bottom: 20px; text-shadow: 2px 2px 10px rgba(241, 196, 15, 0.5); }
-        .btn-refresh { background: #e94560; color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; font-size: 1.2em; margin-bottom: 20px; transition: 0.3s; }
-        #status { margin-bottom: 10px; color: #888; font-size: 1em; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; }
+        body { background-color: #0f172a; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: #1e293b; padding: 30px; border-radius: 20px; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
+        h1 { color: #38bdf8; font-size: 3em; margin-bottom: 10px; text-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+        p { color: #94a3b8; margin-bottom: 30px; }
+        .btn-refresh { background: #38bdf8; color: #0f172a; border: none; padding: 15px 40px; border-radius: 12px; cursor: pointer; font-size: 1.3em; font-weight: bold; transition: 0.3s; }
+        .btn-refresh:hover { background: #7dd3fc; transform: translateY(-3px); }
+        #status { margin-bottom: 15px; font-size: 1.1em; color: #fbbf24; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📊 실시간 투자 순위 발표</h1>
+        <h1>🏆 투자 유치 순위 발표</h1>
+        <p>어느 모둠이 가장 많은 신뢰(투자금)를 얻었을까요?</p>
         <div id="status">데이터 연결 중...</div>
-        <button class="btn-refresh" onclick="loadData()">🔄 데이터 업데이트 & 정산</button>
+        <button class="btn-refresh" onclick="loadData()">📊 결과 집계 및 순위 발표</button>
         <canvas id="rankingChart"></canvas>
     </div>
 
@@ -28,62 +31,46 @@
 
         async function loadData() {
             const statusDiv = document.getElementById('status');
-            statusDiv.innerText = "⏳ 데이터를 분석 중...";
+            statusDiv.innerText = "⏳ 전 모둠의 투자 데이터를 집계 중입니다...";
 
             try {
                 const response = await fetch(SHEET_URL + "&t=" + new Date().getTime());
                 const csvText = await response.text();
                 const results = Papa.parse(csvText, { header: false, skipEmptyLines: true }).data;
-                const rows = results.slice(1);
+                const rows = results.slice(1); // 제목 행 제외
 
-                if (rows.length === 0) {
-                    statusDiv.innerText = "⚠️ 시트에 데이터가 없습니다! 먼저 투자를 진행해 주세요.";
-                    return;
-                }
+                // 1. 모든 모둠이 받은 투자금 합계를 0으로 초기화
+                let receivedInvestment = { 
+                    "1모둠": 0, "2모둠": 0, "3모둠": 0, "4모둠": 0, "5모둠": 0, "6모둠": 0 
+                };
 
-                let latestEntries = {};
+                // 2. 각 응답자의 데이터를 확인하여 '받은 쪽'에 금액을 더함
                 rows.forEach(row => {
                     if(row.length < 4) return;
-                    const teamName = row[1].trim(); 
                     try {
-                        // 구글 시트 특유의 따옴표 꼬임 방지 처리
                         let cleanJson = row[3].replace(/^"|"$/g, '').replace(/""/g, '"');
-                        latestEntries[teamName] = JSON.parse(cleanJson);
-                    } catch(e) { console.log("파싱 건너뜀:", teamName); }
+                        let investments = JSON.parse(cleanJson);
+                        
+                        // 예: A가 B에게 1000원 투자했다면, B의 합계에 1000원을 더함
+                        for (let targetTeam in investments) {
+                            if (receivedInvestment.hasOwnProperty(targetTeam)) {
+                                receivedInvestment[targetTeam] += Number(investments[targetTeam] || 0);
+                            }
+                        }
+                    } catch(e) { console.error("데이터 해석 실패"); }
                 });
 
-                // 수익률 설정
-                const rates = { "1모둠": 1.1, "2모둠": 1.2, "3모둠": 0.8, "4모둠": 1.3, "5모둠": 0.9, "6모둠": 1.0 };
-
-                let finalBalances = { "1모둠": 0, "2모둠": 0, "3모둠": 0, "4모둠": 0, "5모둠": 0, "6모둠": 0 };
-                
-                let foundAny = false;
-                Object.keys(latestEntries).forEach(investor => {
-                    let total = 0;
-                    const investments = latestEntries[investor];
-                    for (let targetTeam in investments) {
-                        total += Number(investments[targetTeam] || 0) * (rates[targetTeam] || 1);
-                        foundAny = true;
-                    }
-                    if (finalBalances.hasOwnProperty(investor)) {
-                        finalBalances[investor] = Math.floor(total);
-                    }
-                });
-
-                if (!foundAny) {
-                    statusDiv.innerText = "⚠️ 데이터는 있지만 유효한 투자 내역이 없습니다.";
-                } else {
-                    updateChart(finalBalances);
-                    statusDiv.innerText = "✅ 정산 완료! (" + Object.keys(latestEntries).length + "개 모둠 응답)";
-                }
+                updateChart(receivedInvestment);
+                statusDiv.innerText = "✅ 집계 완료! 실시간 순위가 반영되었습니다.";
 
             } catch (error) {
-                statusDiv.innerText = "❌ 에러: 구글 시트 주소가 정확한지 확인하세요.";
+                statusDiv.innerText = "❌ 에러: 구글 시트 데이터를 가져올 수 없습니다.";
             }
         }
 
         function updateChart(balances) {
             const ctx = document.getElementById('rankingChart').getContext('2d');
+            // 많이 받은 순서대로 정렬
             const sortedLabels = Object.keys(balances).sort((a, b) => balances[b] - balances[a]);
             const sortedValues = sortedLabels.map(l => balances[l]);
 
@@ -94,19 +81,30 @@
                 data: {
                     labels: sortedLabels,
                     datasets: [{
-                        label: '최종 자산',
+                        label: '유치한 총 투자금 (원)',
                         data: sortedValues,
-                        backgroundColor: ['#f1c40f', '#bdc3c7', '#e67e22', '#3498db', '#9b59b6', '#2ecc71'],
-                        borderRadius: 10
+                        backgroundColor: [
+                            '#fbbf24', '#94a3b8', '#d97706', '#0284c7', '#7c3aed', '#059669'
+                        ],
+                        borderRadius: 15
                     }]
                 },
                 options: {
                     responsive: true,
                     scales: {
-                        y: { beginAtZero: true, ticks: { color: 'white' } },
-                        x: { ticks: { color: 'white', font: { size: 16, weight: 'bold' } } }
+                        y: { 
+                            beginAtZero: true, 
+                            ticks: { color: '#94a3b8', callback: (v) => v.toLocaleString() + '원' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: { ticks: { color: 'white', font: { size: 18, weight: 'bold' } } }
                     },
-                    plugins: { legend: { display: false } }
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { 
+                            callbacks: { label: (ctx) => `총 유치 금액: ${ctx.raw.toLocaleString()}원` }
+                        }
+                    }
                 }
             });
         }
