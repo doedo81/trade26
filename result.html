@@ -123,24 +123,48 @@
             loadData();
         }
 
-        async function loadData() {
-            try {
-                const res = await fetch(SHEET_URL + "&t=" + new Date().getTime());
-                const text = await res.text();
-                const rows = Papa.parse(text, {header:true, skipEmptyLines:true}).data;
-                
-                let totals = {"1모둠":0,"2모둠":0,"3모둠":0,"4모둠":0,"5모둠":0,"6모둠":0};
-                rows.forEach(row => {
-                    if(currentMode !== 'total' && row.라운드 !== currentMode) return;
-                    try {
-                        const inv = JSON.parse(row.상세내역.replace(/""/g, '"'));
-                        for(let t in inv) if(totals.hasOwnProperty(t)) totals[t] += Number(inv[t]);
-                    } catch(e){}
-                });
-                draw(totals);
-            } catch(e) { console.error("데이터 로드 실패"); }
-        }
+       async function loadData() {
+    try {
+        const res = await fetch(SHEET_URL + "&t=" + new Date().getTime());
+        const text = await res.text();
+        
+        // PapaParse로 읽기
+        const results = Papa.parse(text, {header: false, skipEmptyLines: true});
+        const rows = results.data.slice(1); // 첫 줄(헤더) 제외
+        
+        let totals = {"1모둠":0, "2모둠":0, "3모둠":0, "4모둠":0, "5모둠":0, "6모둠":0};
+        
+        rows.forEach(row => {
+            // ★ 이미지 기반 열 번호 매칭:
+            // row[0]: 타임스탬프
+            // row[1]: 라운드 (현재 "1모둠" 등이 적힌 칸)
+            // row[4]: 상세내역 (E열)
+            
+            // 라운드 판별 로직 수정: 
+            // 현재 B열에 "1모둠"이라고 적혀있으므로 첫 글자만 따서 라운드를 판별합니다.
+            let rowRound = String(row[1] || "").charAt(0); 
 
+            if(currentMode !== 'total' && rowRound !== String(currentMode)) return;
+            
+            try {
+                let rawDetails = row[4] || ""; // E열 데이터
+                // 따옴표 중첩 제거
+                if(rawDetails.startsWith('"')) rawDetails = rawDetails.slice(1, -1).replace(/""/g, '"');
+                
+                const inv = JSON.parse(rawDetails);
+                for(let t in inv) {
+                    if(totals.hasOwnProperty(t)) {
+                        totals[t] += Number(inv[t] || 0);
+                    }
+                }
+            } catch(e) { console.log("행 해석 실패"); }
+        });
+
+        draw(totals);
+    } catch(e) {
+        alert("시트 데이터를 가져오지 못했습니다.");
+    }
+}
         function draw(data) {
             const ctx = document.getElementById('chart').getContext('2d');
             const sorted = Object.keys(data).sort((a,b) => data[b] - data[a]);
