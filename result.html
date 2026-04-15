@@ -2,93 +2,133 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>🏆 투자 유치 왕 발표</title>
+    <title>⚙️ 투자 레이스 관리자 패널</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { background-color: #0f172a; color: white; font-family: sans-serif; padding: 20px; }
-        .container { max-width: 1000px; margin: auto; background: #1e293b; padding: 40px; border-radius: 25px; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
-        h1 { color: #38bdf8; font-size: 3.5em; margin-bottom: 5px; }
-        #status { margin-bottom: 20px; color: #fbbf24; font-size: 1.2em; font-weight: bold; }
-        .btn-refresh { background: #38bdf8; color: #0f172a; border: none; padding: 18px 50px; border-radius: 15px; cursor: pointer; font-size: 1.5em; font-weight: bold; transition: 0.3s; margin-bottom: 30px; }
-        .btn-refresh:hover { background: #7dd3fc; transform: scale(1.05); }
+        body { display: flex; height: 100vh; margin: 0; background: #0f172a; color: white; font-family: sans-serif; }
+        .side { width: 320px; background: #1e293b; padding: 20px; border-right: 1px solid #334155; overflow-y: auto; }
+        .main { flex: 1; padding: 40px; display: flex; flex-direction: column; }
+        .card { background: #334155; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
+        h2 { color: #38bdf8; margin-top: 0; }
+        label { font-size: 0.9em; color: #94a3b8; }
+        select, input { width: 100%; padding: 10px; margin: 8px 0; border-radius: 6px; border: none; }
+        button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-copy { background: #38bdf8; color: #0f172a; }
+        .btn-refresh { background: #22c55e; color: white; }
+        /* QR 코드 스타일 */
+        #qrcode { background: white; padding: 10px; margin-top: 15px; display: flex; justify-content: center; border-radius: 8px; }
+        canvas { margin-top: 20px; flex: 1; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🏆 투자 유치 실시간 순위</h1>
-        <div id="status">연결 대기 중...</div>
-        <button class="btn-refresh" onclick="loadData()">📊 결과 집계 업데이트</button>
-        <canvas id="rankingChart"></canvas>
+    <div class="side">
+        <h2>⚙️ 설정 패널</h2>
+        <div class="card">
+            <label>📅 현재 라운드</label>
+            <select id="roundSet" onchange="updateAll()">
+                <option value="1">1 라운드</option><option value="2">2 라운드</option>
+                <option value="3">3 라운드</option><option value="4">4 라운드</option>
+            </select>
+            <label>💰 투자 한도 (원)</label>
+            <input type="number" id="limitSet" value="100000000" step="10000000" oninput="updateAll()">
+            
+            <button class="btn-copy" onclick="copyLink()">🔗 학생용 링크 복사</button>
+            
+            <div id="qrcode"></div>
+            <p style="font-size: 0.7em; text-align: center; color: #94a3b8; margin-top: 5px;">화면의 QR을 찍고 접속하세요!</p>
+        </div>
+        
+        <div class="card">
+            <button class="btn-refresh" onclick="loadData()">🔄 실시간 집계 새로고침</button>
+            <button onclick="setMode('total')" style="background:#fbbf24; color:#0f172a;">🏆 최종 통합 순위</button>
+        </div>
+    </div>
+
+    <div class="main">
+        <h1 id="viewTitle">📊 라운드 결과 발표</h1>
+        <canvas id="chart"></canvas>
     </div>
 
     <script>
+        // ★ 선생님 시트 주소 (반드시 본인 것으로 수정!)
         const SHEET_URL = "https://docs.google.com/spreadsheets/d/1U6YtLPRPv2vI8hyceTnt2mL7bqCHRXMLx1RlZD12gTc/export?format=csv";
-
         let myChart;
+        let qrGenerator;
+        let currentMode = '1';
 
-        async function loadData() {
-            const statusDiv = document.getElementById('status');
-            try {
-                const response = await fetch(SHEET_URL + "&t=" + new Date().getTime());
-                const csvText = await response.text();
-                const results = Papa.parse(csvText, { header: false, skipEmptyLines: true }).data;
-                const rows = results.slice(1);
-
-                // 집계통 (모든 모둠 0원 세팅)
-                let totals = { "1모둠": 0, "2모둠": 0, "3모둠": 0, "4모둠": 0, "5모둠": 0, "6모둠": 0 };
-
-                rows.forEach(row => {
-                    if(row.length < 4) return;
-                    try {
-                        let cleanJson = row[3].replace(/^"|"$/g, '').replace(/""/g, '"');
-                        let investments = JSON.parse(cleanJson);
-                        for (let target in investments) {
-                            if (totals.hasOwnProperty(target)) {
-                                totals[target] += Number(investments[target]);
-                            }
-                        }
-                    } catch(e) {}
-                });
-
-                updateChart(totals);
-                statusDiv.innerText = "✅ 총 " + rows.length + "건의 투자가 집계되었습니다!";
-            } catch (error) {
-                statusDiv.innerText = "❌ 시트 연결 실패. 주소를 확인하세요.";
-            }
+        // 링크 업데이트 및 QR 코드 생성
+        function updateAll() {
+            const r = document.getElementById('roundSet').value;
+            const l = document.getElementById('limitSet').value;
+            // ★ 본인 깃허브 주소로 수정 (doedo81 부분)
+            const studentUrl = `https://doedo81.github.io/trade26/index.html?round=${r}&limit=${l}`;
+            
+            // QR 코드 갱신
+            const qrDiv = document.getElementById("qrcode");
+            qrDiv.innerHTML = ""; // 기존 QR 삭제
+            qrGenerator = new QRCode(qrDiv, {
+                text: studentUrl,
+                width: 180,
+                height: 180,
+                colorDark : "#000000",
+                colorLight : "#ffffff"
+            });
+            
+            window.lastStudentUrl = studentUrl;
+            currentMode = r;
+            document.getElementById('viewTitle').innerText = `📊 ${r}라운드 투자 유치 현황`;
         }
 
-        function updateChart(data) {
-            const ctx = document.getElementById('rankingChart').getContext('2d');
-            const sorted = Object.keys(data).sort((a, b) => data[b] - data[a]);
-            const values = sorted.map(k => data[k]);
+        function copyLink() {
+            navigator.clipboard.writeText(window.lastStudentUrl);
+            alert("학생용 주소가 복사되었습니다!");
+        }
 
-            if (myChart) myChart.destroy();
+        function setMode(m) {
+            currentMode = m;
+            document.getElementById('viewTitle').innerText = m === 'total' ? "🏆 전체 라운드 통합 순위" : `📊 ${m}라운드 투자 유치 현황`;
+            loadData();
+        }
 
+        async function loadData() {
+            try {
+                const res = await fetch(SHEET_URL + "&t=" + new Date().getTime());
+                const text = await res.text();
+                const rows = Papa.parse(text, {header:true, skipEmptyLines:true}).data;
+                
+                let totals = {"1모둠":0,"2모둠":0,"3모둠":0,"4모둠":0,"5모둠":0,"6모둠":0};
+                rows.forEach(row => {
+                    if(currentMode !== 'total' && row.라운드 !== currentMode) return;
+                    try {
+                        const inv = JSON.parse(row.상세내역.replace(/""/g, '"'));
+                        for(let t in inv) if(totals.hasOwnProperty(t)) totals[t] += Number(inv[t]);
+                    } catch(e){}
+                });
+                draw(totals);
+            } catch(e) { alert("데이터 로드 실패!"); }
+        }
+
+        function draw(data) {
+            const ctx = document.getElementById('chart').getContext('2d');
+            const sorted = Object.keys(data).sort((a,b) => data[b] - data[a]);
+            if(myChart) myChart.destroy();
             myChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: sorted,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: ['#fbbf24', '#94a3b8', '#d97706', '#0284c7', '#7c3aed', '#059669'],
-                        borderRadius: 10
-                    }]
+                    datasets: [{ label: '유치 금액', data: sorted.map(k=>data[k]), backgroundColor: '#38bdf8' }]
                 },
-                options: {
-                    plugins: { 
-                        legend: { display: false },
-                        // 막대 위에 금액 표시
-                        tooltip: { enabled: true }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { color: '#94a3b8' } },
-                        x: { ticks: { color: 'white', font: { size: 20, weight: 'bold' } } }
-                    }
+                options: { 
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' } }, x: { ticks: { color: 'white', font: {size:16} } } },
+                    plugins: { legend: { display: false } }
                 }
             });
         }
-        window.onload = loadData;
+
+        window.onload = () => { updateAll(); loadData(); };
     </script>
 </body>
 </html>
