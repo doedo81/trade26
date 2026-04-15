@@ -1,77 +1,71 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💰 모둠 투자 시스템</title>
-    <style>
-        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; display: flex; justify-content: center; }
-        .card { background: white; width: 100%; max-width: 400px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .info { background: #e7f3ff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; color: #1877f2; }
-        input { width: 100%; padding: 10px; margin: 5px 0 15px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #1877f2; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #ccc; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <div id="roundInfo" class="info">데이터 로딩 중...</div>
-        <label>📍 우리 모둠</label>
-        <select id="myTeam" style="width:100%; padding:10px; margin-bottom:15px;" onchange="renderFields()">
-            <option value="">-- 선택하세요 --</option>
-            <option value="1">1모둠</option><option value="2">2모둠</option><option value="3">3모둠</option>
-            <option value="4">4모둠</option><option value="5">5모둠</option><option value="6">6모둠</option>
-        </select>
+// 한글과 숫자가 섞인 문자를 숫자로 변환하는 마법의 함수
+function parseKoreanAmount(text) {
+    if (!text) return 0;
+    
+    // 1. 쉼표(,)나 '원' 글자 제거
+    let clean = text.replace(/,/g, '').replace(/원/g, '').trim();
+    
+    // 2. 순수 숫자만 있는 경우 처리
+    if (!isNaN(clean) && clean !== "") return Number(clean);
+
+    // 3. '천', '만', '억' 단위 변환 로직
+    let total = 0;
+    let temp = "";
+    
+    // 단위를 숫자로 변환하기 위한 매핑
+    const units = { '천': 1000, '만': 10000, '백만': 1000000, '천만': 10000000, '억': 100000000 };
+    
+    // 예: "2천5백만" 같은 복합 입력 처리 (간단 버전)
+    // "2천" -> 2 * 1000, "3만" -> 3 * 10000
+    if (clean.includes('억')) {
+        let parts = clean.split('억');
+        total += (Number(parts[0]) || 0) * 100000000;
+        clean = parts[1] || "";
+    }
+    if (clean.includes('만')) {
+        let parts = clean.split('만');
+        total += (Number(parts[0]) || 0) * 10000;
+        clean = parts[1] || "";
+    }
+    if (clean.includes('천')) {
+        let parts = clean.split('천');
+        total += (Number(parts[0]) || 0) * 1000;
+    }
+
+    return total || Number(clean.replace(/[^0-9]/g, ''));
+}
+
+// 입력 시 실시간으로 호출되는 함수 (기존 calc 함수 수정)
+function calc() {
+    let total = 0;
+    document.querySelectorAll('.bet').forEach(input => {
+        const val = parseKoreanAmount(input.value);
+        total += val;
         
-        <div id="fields"></div>
-        
-        <div id="status" style="font-weight:bold; margin-bottom:10px;"></div>
-        <button id="submitBtn" onclick="submit()" disabled>제출하기</button>
-    </div>
-
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const ROUND = urlParams.get('round') || "1";
-        const LIMIT = parseInt(urlParams.get('limit')) || 100000000;
-        const GAS_URL = "선생님의_GAS_URL_여기에_붙여넣기";
-
-        document.getElementById('roundInfo').innerText = `📅 ${ROUND}라운드 (투자금: ${LIMIT.toLocaleString()}원)`;
-
-        function renderFields() {
-            const myTeam = document.getElementById('myTeam').value;
-            const container = document.getElementById('fields');
-            container.innerHTML = '';
-            if(!myTeam) return;
-
-            for(let i=1; i<=6; i++) {
-                if(i == myTeam) continue;
-                container.innerHTML += `<label>📈 ${i}모둠 투자</label><input type="number" class="bet" data-team="${i}" oninput="calc()" placeholder="0">`;
-            }
+        // 입력창 옆에 숫자로 변환된 결과를 작게 보여주면 학생들이 더 안심합니다.
+        const previewId = "preview-" + input.dataset.team;
+        let preview = document.getElementById(previewId);
+        if(!preview) {
+            preview = document.createElement('span');
+            preview.id = previewId;
+            preview.style.fontSize = "0.7em";
+            preview.style.color = "#888";
+            input.parentNode.insertBefore(preview, input.nextSibling);
         }
+        preview.innerText = val > 0 ? ` (${val.toLocaleString()}원)` : "";
+    });
 
-        function calc() {
-            let total = 0;
-            document.querySelectorAll('.bet').forEach(i => total += Number(i.value || 0));
-            const btn = document.getElementById('submitBtn');
-            const status = document.getElementById('status');
-            
-            if(total === LIMIT) {
-                status.innerText = "✅ 금액이 정확합니다!"; status.style.color = "green"; btn.disabled = false;
-            } else {
-                status.innerText = `⚠️ ${(LIMIT-total).toLocaleString()}원 더 투자해야 합니다.`;
-                status.style.color = "orange"; btn.disabled = true;
-            }
-        }
-
-        async function submit() {
-            const details = {};
-            document.querySelectorAll('.bet').forEach(i => details[i.dataset.team + "모둠"] = Number(i.value));
-            const payload = { round: ROUND, team: document.getElementById('myTeam').value + "모둠", total: LIMIT, details: details };
-            
-            document.getElementById('submitBtn').innerText = "전송 중...";
-            await fetch(GAS_URL, { method: "POST", body: JSON.stringify(payload), mode: 'no-cors' });
-            alert("제출 완료!"); location.reload();
-        }
-    </script>
-</body>
-</html>
+    const btn = document.getElementById('submitBtn');
+    const status = document.getElementById('status');
+    
+    if(total === LIMIT) {
+        status.innerText = "✅ 금액이 정확합니다!"; 
+        status.style.color = "green"; 
+        btn.disabled = false;
+    } else {
+        const diff = LIMIT - total;
+        status.innerText = diff > 0 ? `⚠️ ${diff.toLocaleString()}원 더 투자하세요.` : `❌ ${Math.abs(diff).toLocaleString()}원 초과했습니다!`;
+        status.style.color = diff > 0 ? "orange" : "red";
+        btn.disabled = true;
+    }
+}
