@@ -135,23 +135,45 @@
 
         async function submit() {
             const myTeam = document.getElementById('myTeam').value;
-            const details = {};
-            document.querySelectorAll('.bet').forEach(i => details[i.dataset.team + "모둠"] = parseKorean(i.value));
-            
-            const payload = { round: ROUND, team: myTeam + "모둠", total: LIMIT, details: details };
-            
-            const btn = document.getElementById('submitBtn');
-            btn.innerText = "🚀 전송 중..."; btn.disabled = true;
+    if(!myTeam) { alert("모둠을 먼저 선택하세요!"); return; }
 
-            try {
-                await fetch(GAS_URL, { method: "POST", body: JSON.stringify(payload), mode: 'no-cors' });
-                alert("성공적으로 제출되었습니다!");
-                location.reload();
-            } catch(e) {
-                alert("오류가 발생했습니다. 다시 시도해주세요.");
-                btn.innerText = "제출하기"; btn.disabled = false;
-            }
-        }
+    const details = {};
+    let totalCheck = 0;
+    document.querySelectorAll('.bet').forEach(input => {
+        const val = parseKorean(input.value);
+        details[input.dataset.team + "모둠"] = val;
+        totalCheck += val;
+    });
+    
+    // 데이터를 보낼 준비 (시트의 열 순서에 맞춤)
+    const payload = { 
+        round: ROUND, 
+        team: myTeam + "모둠", 
+        total: totalCheck, 
+        details: details 
+    };
+    
+    const btn = document.getElementById('submitBtn');
+    btn.innerText = "🚀 전송 중..."; 
+    btn.disabled = true;
+
+    // 데이터를 구글 시트로 보내는 실제 명령
+    try {
+        await fetch(GAS_URL, {
+            method: "POST",
+            mode: 'no-cors', // 중요: 보안 에러 방지
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(payload)
+        });
+        
+        alert("성공적으로 제출되었습니다! 🌸");
+        location.reload(); // 제출 후 화면 새로고침
+    } catch(e) {
+        alert("전송 중 오류가 발생했습니다. 주소를 확인해주세요.");
+        btn.innerText = "제출하기";
+        btn.disabled = false;
+    }
+}
     </script>
 </body>
 </html>
