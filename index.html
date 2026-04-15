@@ -3,128 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>모둠 투자 시뮬레이션</title>
+    <title>💰 모둠 투자 시스템</title>
     <style>
-        :root { --primary: #4a90e2; --secondary: #e91e63; --bg: #f0f2f5; }
-        body { font-family: 'Pretendard', sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; }
-        .card { background: white; width: 100%; max-width: 450px; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #333; margin-bottom: 10px; }
-        .desc { text-align: center; color: #666; font-size: 0.9em; margin-bottom: 20px; }
-        label { font-weight: bold; display: block; margin-top: 15px; color: #444; }
-        select, input { width: 100%; padding: 12px; margin-top: 8px; border: 2px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; transition: border 0.3s; }
-        input:focus { border-color: var(--primary); outline: none; }
-        .status-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 5px solid var(--primary); }
-        .total-text { font-size: 1.1em; font-weight: bold; }
-        .limit-text { font-size: 0.85em; color: #888; margin-top: 5px; }
-        button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 17px; font-weight: bold; margin-top: 20px; transition: 0.3s; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        button:hover:not(:disabled) { background: #357abd; transform: translateY(-2px); }
+        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; display: flex; justify-content: center; }
+        .card { background: white; width: 100%; max-width: 400px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .info { background: #e7f3ff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; color: #1877f2; }
+        input { width: 100%; padding: 10px; margin: 5px 0 15px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #1877f2; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        button:disabled { background: #ccc; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>💰 투자 대시보드</h2>
-        <p class="desc">우리 모둠을 제외한 팀에 자유롭게 투자하세요!<br>(최대 1억 원 이내)</p>
-        
-        <label>📍 우리 모둠 선택</label>
-        <select id="myTeam" onchange="generateFields()">
+        <div id="roundInfo" class="info">데이터 로딩 중...</div>
+        <label>📍 우리 모둠</label>
+        <select id="myTeam" style="width:100%; padding:10px; margin-bottom:15px;" onchange="renderFields()">
             <option value="">-- 선택하세요 --</option>
-            <option value="1">1모둠</option>
-            <option value="2">2모둠</option>
-            <option value="3">3모둠</option>
-            <option value="4">4모둠</option>
-            <option value="5">5모둠</option>
-            <option value="6">6모둠</option>
+            <option value="1">1모둠</option><option value="2">2모둠</option><option value="3">3모둠</option>
+            <option value="4">4모둠</option><option value="5">5모둠</option><option value="6">6모둠</option>
         </select>
-
-        <div id="fieldsContainer"></div>
-
-        <div class="status-box">
-            <div class="total-text">현재 총 투자액: <span id="totalDisplay">0</span>원</div>
-            <div id="message" class="limit-text">금액을 입력해 주세요 (최대 1억)</div>
-        </div>
-
-        <button id="submitBtn" onclick="sendData()" disabled>제출하기</button>
+        
+        <div id="fields"></div>
+        
+        <div id="status" style="font-weight:bold; margin-bottom:10px;"></div>
+        <button id="submitBtn" onclick="submit()" disabled>제출하기</button>
     </div>
 
     <script>
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbyjZGwlv45qJ68J3BNNZgaGMjW2A686efLi5BZTSeBfaYtoGfQDisNJbjifq1h1MFS3/exec"; // ★ 꼭 수정하세요!
-        let currentTotal = 0;
+        const urlParams = new URLSearchParams(window.location.search);
+        const ROUND = urlParams.get('round') || "1";
+        const LIMIT = parseInt(urlParams.get('limit')) || 100000000;
+        const GAS_URL = "선생님의_GAS_URL_여기에_붙여넣기";
 
-        function generateFields() {
+        document.getElementById('roundInfo').innerText = `📅 ${ROUND}라운드 (투자금: ${LIMIT.toLocaleString()}원)`;
+
+        function renderFields() {
             const myTeam = document.getElementById('myTeam').value;
-            const container = document.getElementById('fieldsContainer');
+            const container = document.getElementById('fields');
             container.innerHTML = '';
             if(!myTeam) return;
 
             for(let i=1; i<=6; i++) {
                 if(i == myTeam) continue;
-                container.innerHTML += `
-                    <label>📈 ${i}모둠 투자 금액</label>
-                    <input type="number" class="betInput" data-team="${i}" placeholder="0" oninput="validate()">
-                `;
+                container.innerHTML += `<label>📈 ${i}모둠 투자</label><input type="number" class="bet" data-team="${i}" oninput="calc()" placeholder="0">`;
             }
-            validate();
         }
 
-        function validate() {
-            const inputs = document.querySelectorAll('.betInput');
-            currentTotal = 0;
-            inputs.forEach(input => {
-                currentTotal += Number(input.value || 0);
-            });
-
-            const display = document.getElementById('totalDisplay');
-            const msg = document.getElementById('message');
+        function calc() {
+            let total = 0;
+            document.querySelectorAll('.bet').forEach(i => total += Number(i.value || 0));
             const btn = document.getElementById('submitBtn');
-
-            display.innerText = currentTotal.toLocaleString();
-
-            if (currentTotal > 100000000) {
-                msg.innerText = "❌ 1억 원을 초과했습니다!";
-                msg.style.color = "red";
-                btn.disabled = true;
-            } else if (currentTotal <= 0) {
-                msg.innerText = "입력 대기 중...";
-                msg.style.color = "#888";
-                btn.disabled = true;
+            const status = document.getElementById('status');
+            
+            if(total === LIMIT) {
+                status.innerText = "✅ 금액이 정확합니다!"; status.style.color = "green"; btn.disabled = false;
             } else {
-                msg.innerText = "✅ 제출 가능한 금액입니다.";
-                msg.style.color = "green";
-                btn.disabled = false;
+                status.innerText = `⚠️ ${(LIMIT-total).toLocaleString()}원 더 투자해야 합니다.`;
+                status.style.color = "orange"; btn.disabled = true;
             }
         }
 
-        function sendData() {
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.innerText = "전송 중...";
-
-            const myTeam = document.getElementById('myTeam').value;
-            const inputs = document.querySelectorAll('.betInput');
+        async function submit() {
             const details = {};
-            inputs.forEach(i => {
-                details[i.dataset.team + "모둠"] = Number(i.value || 0);
-            });
-
-            const payload = {
-                team: myTeam + "모둠",
-                total: currentTotal,
-                details: details
-            };
-
-            fetch(GAS_URL, {
-                method: "POST",
-                mode: 'no-cors', // 중요: CORS 에러 방지
-                body: JSON.stringify(payload)
-            }).then(() => {
-                alert("성공적으로 제출되었습니다!");
-                location.reload();
-            }).catch(err => {
-                alert("오류가 발생했습니다. 다시 시도해 주세요.");
-                btn.disabled = false;
-                btn.innerText = "제출하기";
-            });
+            document.querySelectorAll('.bet').forEach(i => details[i.dataset.team + "모둠"] = Number(i.value));
+            const payload = { round: ROUND, team: document.getElementById('myTeam').value + "모둠", total: LIMIT, details: details };
+            
+            document.getElementById('submitBtn').innerText = "전송 중...";
+            await fetch(GAS_URL, { method: "POST", body: JSON.stringify(payload), mode: 'no-cors' });
+            alert("제출 완료!"); location.reload();
         }
     </script>
 </body>
