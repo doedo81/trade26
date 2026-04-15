@@ -46,27 +46,51 @@
 
         // 한글 금액 변환 함수
         function parseKorean(text) {
-            if (!text) return 0;
-            let clean = text.replace(/,/g, '').replace(/원/g, '').trim();
-            if (!isNaN(clean) && clean !== "") return Number(clean);
+    if (!text) return 0;
+    
+    // 쉼표와 '원' 글자 제거
+    let clean = text.replace(/,/g, '').replace(/원/g, '').trim();
+    
+    // 순수 숫자만 있는 경우 바로 반환
+    if (!isNaN(clean) && clean !== "") return Number(clean);
 
-            let total = 0;
-            if (clean.includes('억')) {
-                let p = clean.split('억');
-                total += (parseFloat(p[0]) || 0) * 100000000;
-                clean = p[1] || "";
-            }
-            if (clean.includes('만')) {
-                let p = clean.split('만');
-                total += (parseFloat(p[0]) || 0) * 10000;
-                clean = p[1] || "";
-            }
-            if (clean.includes('천')) {
-                let p = clean.split('천');
-                total += (parseFloat(p[0]) || 0) * 1000;
-            }
-            return total || Number(clean.replace(/[^0-9]/g, '')) || 0;
-        }
+    let total = 0;
+    let s = clean;
+
+    // 1. '억' 단위 처리
+    if (s.includes('억')) {
+        let parts = s.split('억');
+        total += (parseFloat(parts[0]) || 0) * 100000000;
+        s = parts[1] || "";
+    }
+
+    // 2. '천만' 단위가 한꺼번에 올 경우를 대비한 특수 처리
+    if (s.includes('천만')) {
+        let parts = s.split('천만');
+        total += (parseFloat(parts[0]) || 0) * 10000000;
+        s = parts[1] || "";
+    }
+    // 3. '만' 단위 처리
+    else if (s.includes('만')) {
+        let parts = s.split('만');
+        total += (parseFloat(parts[0]) || 0) * 10000;
+        s = parts[1] || "";
+    }
+
+    // 4. '천' 단위 처리
+    if (s.includes('천')) {
+        let parts = s.split('천');
+        total += (parseFloat(parts[0]) || 0) * 1000;
+        s = parts[1] || "";
+    }
+
+    // 5. 남은 숫자가 있다면 더하기
+    if (s && !isNaN(s)) {
+        total += Number(s);
+    }
+
+    return total;
+}
 
         function renderFields() {
             const myTeam = document.getElementById('myTeam').value;
