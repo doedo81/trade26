@@ -2,93 +2,124 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>⚙️ 투자 레이스 관리자 패널</title>
+    <title>🍭 투자 레이스 관리자 대시보드</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { display: flex; height: 100vh; margin: 0; background: #0f172a; color: white; font-family: sans-serif; }
-        .side { width: 320px; background: #1e293b; padding: 20px; border-right: 1px solid #334155; overflow-y: auto; }
-        .main { flex: 1; padding: 40px; display: flex; flex-direction: column; }
-        .card { background: #334155; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
-        h2 { color: #38bdf8; margin-top: 0; }
-        label { font-size: 0.9em; color: #94a3b8; }
-        select, input { width: 100%; padding: 10px; margin: 8px 0; border-radius: 6px; border: none; }
-        button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-copy { background: #38bdf8; color: #0f172a; }
-        .btn-refresh { background: #22c55e; color: white; }
-        /* QR 코드 스타일 */
-        #qrcode { background: white; padding: 10px; margin-top: 15px; display: flex; justify-content: center; border-radius: 8px; }
-        canvas { margin-top: 20px; flex: 1; }
+        /* 전체 박스 모델 설정: 모든 요소가 너비를 벗어나지 않게 함 */
+        * { box-sizing: border-box; }
+
+        body { display: flex; height: 100vh; margin: 0; background: #FFF1E6; color: #4A4A4A; font-family: 'NanumSquare', sans-serif; overflow: hidden; }
+        
+        /* 왼쪽 사이드바: 고정 너비 및 튀어나감 방지 */
+        .side { width: 300px; min-width: 300px; background: #FDE2E4; padding: 20px; border-right: 2px solid #FAD2E1; overflow-y: auto; }
+        
+        .main { flex: 1; padding: 40px; background: #FFF1E6; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* 카드 영역: 내부 여백 조정 */
+        .card { background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 18px; margin-bottom: 20px; border: 1px solid #FAD2E1; }
+        
+        h2 { color: #E91E63; font-size: 1.4em; margin-bottom: 15px; text-align: center; }
+        label { font-size: 0.9em; font-weight: bold; color: #D64D75; display: block; margin-top: 10px; }
+        
+        /* 입력 상자 수정: 너비가 튀어나가지 않도록 설정 */
+        select, input { 
+            width: 100%; /* 부모 너비에 맞춤 */
+            max-width: 100%; 
+            padding: 12px; 
+            margin: 8px 0; 
+            border-radius: 10px; 
+            border: 1px solid #FAD2E1; 
+            background: #FFFFFF; 
+            font-size: 1em; 
+            display: block; /* 줄바꿈 강제 */
+        }
+        
+        button { width: 100%; padding: 15px; margin-top: 10px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 1em; }
+        .btn-copy { background: #FFB3C1; color: #9D3C55; }
+        .btn-refresh { background: #B9FBC0; color: #2D5A27; }
+        .btn-total { background: #FFF599; color: #856404; }
+
+        /* QR 코드 영역 수정 */
+        #qrcode-container { margin-top: 15px; display: flex; flex-direction: column; align-items: center; width: 100%; }
+        #qrcode { background: white; padding: 10px; border-radius: 12px; border: 2px solid #FAD2E1; width: 200px; height: 200px; display: flex; justify-content: center; align-items: center; }
+        #qrcode img { max-width: 100%; height: auto; } 
+        
+        .link-text { font-size: 0.7em; color: #D64D75; margin-top: 8px; word-break: break-all; text-align: center; width: 100%; overflow: hidden; }
+
+        /* 제목 및 그래프 영역 */
+        #viewTitle { color: #D64D75; text-align: center; font-size: 2.2em; margin-top: 0; margin-bottom: 20px; }
+        .chart-wrapper { flex: 1; background: white; border-radius: 25px; padding: 25px; border: 3px solid #FAD2E1; position: relative; min-height: 0; }
     </style>
 </head>
 <body>
     <div class="side">
-        <h2>⚙️ 설정 패널</h2>
+        <h2>💖 관리자 패널</h2>
         <div class="card">
             <label>📅 현재 라운드</label>
             <select id="roundSet" onchange="updateAll()">
                 <option value="1">1 라운드</option><option value="2">2 라운드</option>
                 <option value="3">3 라운드</option><option value="4">4 라운드</option>
             </select>
+            
             <label>💰 투자 한도 (원)</label>
             <input type="number" id="limitSet" value="100000000" step="10000000" oninput="updateAll()">
             
-            <button class="btn-copy" onclick="copyLink()">🔗 학생용 링크 복사</button>
-            
-            <div id="qrcode"></div>
-            <p style="font-size: 0.7em; text-align: center; color: #94a3b8; margin-top: 5px;">화면의 QR을 찍고 접속하세요!</p>
+            <div id="qrcode-container">
+                <div id="qrcode"></div>
+                <div id="studentLink" class="link-text"></div>
+            </div>
+            <button class="btn-copy" onclick="copyLink()">🌸 링크 복사하기</button>
         </div>
         
         <div class="card">
-            <button class="btn-refresh" onclick="loadData()">🔄 실시간 집계 새로고침</button>
-            <button onclick="setMode('total')" style="background:#fbbf24; color:#0f172a;">🏆 최종 통합 순위</button>
+            <button class="btn-refresh" onclick="loadData()">🌿 실시간 결과 보기</button>
+            <button class="btn-total" onclick="setMode('total')">👑 최종 순위 발표</button>
         </div>
     </div>
 
     <div class="main">
         <h1 id="viewTitle">📊 라운드 결과 발표</h1>
-        <canvas id="chart"></canvas>
+        <div class="chart-wrapper">
+            <canvas id="chart"></canvas>
+        </div>
     </div>
 
     <script>
-        // ★ 선생님 시트 주소 (반드시 본인 것으로 수정!)
         const SHEET_URL = "https://docs.google.com/spreadsheets/d/1U6YtLPRPv2vI8hyceTnt2mL7bqCHRXMLx1RlZD12gTc/export?format=csv";
         let myChart;
         let qrGenerator;
         let currentMode = '1';
 
-        // 링크 업데이트 및 QR 코드 생성
         function updateAll() {
             const r = document.getElementById('roundSet').value;
             const l = document.getElementById('limitSet').value;
-            // ★ 본인 깃허브 주소로 수정 (doedo81 부분)
             const studentUrl = `https://doedo81.github.io/trade26/index.html?round=${r}&limit=${l}`;
             
-            // QR 코드 갱신
             const qrDiv = document.getElementById("qrcode");
-            qrDiv.innerHTML = ""; // 기존 QR 삭제
+            qrDiv.innerHTML = "";
             qrGenerator = new QRCode(qrDiv, {
                 text: studentUrl,
                 width: 180,
                 height: 180,
-                colorDark : "#000000",
+                colorDark : "#4A4A4A",
                 colorLight : "#ffffff"
             });
             
+            document.getElementById('studentLink').innerText = studentUrl;
             window.lastStudentUrl = studentUrl;
             currentMode = r;
-            document.getElementById('viewTitle').innerText = `📊 ${r}라운드 투자 유치 현황`;
         }
 
         function copyLink() {
             navigator.clipboard.writeText(window.lastStudentUrl);
-            alert("학생용 주소가 복사되었습니다!");
+            alert("학생용 링크가 복사되었습니다! 🌸");
         }
 
         function setMode(m) {
             currentMode = m;
-            document.getElementById('viewTitle').innerText = m === 'total' ? "🏆 전체 라운드 통합 순위" : `📊 ${m}라운드 투자 유치 현황`;
+            document.getElementById('viewTitle').innerText = m === 'total' ? "👑 전체 라운드 통합 순위" : `📊 ${m}라운드 결과`;
             loadData();
         }
 
@@ -107,7 +138,7 @@
                     } catch(e){}
                 });
                 draw(totals);
-            } catch(e) { alert("데이터 로드 실패!"); }
+            } catch(e) { console.error("데이터 로드 실패"); }
         }
 
         function draw(data) {
@@ -118,11 +149,20 @@
                 type: 'bar',
                 data: {
                     labels: sorted,
-                    datasets: [{ label: '유치 금액', data: sorted.map(k=>data[k]), backgroundColor: '#38bdf8' }]
+                    datasets: [{ 
+                        label: '유치 금액', 
+                        data: sorted.map(k=>data[k]), 
+                        backgroundColor: ['#FFB3C1', '#FFF599', '#B9FBC0', '#A3E4D7', '#D7BDE2', '#FFCCAB'],
+                        borderRadius: 15
+                    }]
                 },
                 options: { 
+                    responsive: true,
                     maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' } }, x: { ticks: { color: 'white', font: {size:16} } } },
+                    scales: { 
+                        y: { beginAtZero: true, grid: { color: '#FAD2E1' }, ticks: { color: '#4A4A4A' } },
+                        x: { ticks: { color: '#D64D75', font: {size:16, weight:'bold'} } } 
+                    },
                     plugins: { legend: { display: false } }
                 }
             });
